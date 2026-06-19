@@ -1,0 +1,135 @@
+﻿{
+    "trackedCount":  343,
+    "autoFixableCount":  8,
+    "timestamp":  "2026-06-17T17:36:21",
+    "total":  384,
+    "byFile":  [
+                   {
+                       "count":  3,
+                       "file":  "auto-clean.ps1"
+                   },
+                   {
+                       "count":  19,
+                       "file":  "bash-safe.ps1"
+                   },
+                   {
+                       "count":  41,
+                       "file":  "bench-compare.ps1"
+                   },
+                   {
+                       "count":  15,
+                       "file":  "bench-file-io.ps1"
+                   },
+                   {
+                       "count":  4,
+                       "file":  "benchmark.ps1"
+                   },
+                   {
+                       "count":  1,
+                       "file":  "capture-errors.ps1"
+                   },
+                   {
+                       "count":  29,
+                       "file":  "cross-ref-check.ps1"
+                   },
+                   {
+                       "count":  3,
+                       "file":  "ensure-tools.ps1"
+                   },
+                   {
+                       "count":  10,
+                       "file":  "install.ps1"
+                   },
+                   {
+                       "count":  56,
+                       "file":  "intake-verify.ps1"
+                   },
+                   {
+                       "count":  38,
+                       "file":  "optimize-system.ps1"
+                   },
+                   {
+                       "count":  2,
+                       "file":  "ps5-detect.ps1"
+                   },
+                   {
+                       "count":  26,
+                       "file":  "pssa-gate.ps1"
+                   },
+                   {
+                       "count":  30,
+                       "file":  "pull-upstream.ps1"
+                   },
+                   {
+                       "count":  18,
+                       "file":  "run-dreaming.ps1"
+                   },
+                   {
+                       "count":  23,
+                       "file":  "run-improvement-cycle.ps1"
+                   },
+                   {
+                       "count":  12,
+                       "file":  "score-auto.ps1"
+                   },
+                   {
+                       "count":  27,
+                       "file":  "skill-graph.ps1"
+                   },
+                   {
+                       "count":  13,
+                       "file":  "skill-test-suite.ps1"
+                   },
+                   {
+                       "count":  3,
+                       "file":  "test-downstream.ps1"
+                   },
+                   {
+                       "count":  3,
+                       "file":  "token-count.ps1"
+                   },
+                   {
+                       "count":  3,
+                       "file":  "tokenize-all.ps1"
+                   },
+                   {
+                       "count":  5,
+                       "file":  "trend.ps1"
+                   }
+               ],
+    "byRule":  [
+                   {
+                       "rule":  "PSAvoidUsingWriteHost",
+                       "count":  343
+                   },
+                   {
+                       "rule":  "PSUseSingularNouns",
+                       "count":  10
+                   },
+                   {
+                       "rule":  "PSUseDeclaredVarsMoreThanAssignments",
+                       "count":  7
+                   },
+                   {
+                       "rule":  "PSUseBOMForUnicodeEncodedFile",
+                       "count":  8
+                   },
+                   {
+                       "rule":  "PSAvoidUsingEmptyCatchBlock",
+                       "count":  2
+                   },
+                   {
+                       "rule":  "PSReviewUnusedParameter",
+                       "count":  5
+                   },
+                   {
+                       "rule":  "PSUseShouldProcessForStateChangingFunctions",
+                       "count":  2
+                   },
+                   {
+                       "rule":  "PSUseApprovedVerbs",
+                       "count":  7
+                   }
+               ],
+    "manualCount":  33
+}
