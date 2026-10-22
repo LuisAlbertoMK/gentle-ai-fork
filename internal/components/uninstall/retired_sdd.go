@@ -10,6 +10,7 @@ import (
 	opencodeagent "github.com/gentleman-programming/gentle-ai/v4/internal/agents/opencode"
 	"github.com/gentleman-programming/gentle-ai/v4/internal/components/legacyassets"
 	"github.com/gentleman-programming/gentle-ai/v4/internal/model"
+	"github.com/gentleman-programming/gentle-ai/v4/internal/opencode"
 )
 
 // retiredSDDOperation retires what releases installed for SDD for a runtime
@@ -84,7 +85,19 @@ func (s *Service) retiredSDDOperation(adapter agents.Adapter) (operation, []stri
 			actions = append(actions, res.ManualActions()...)
 		}
 		if prompts != "" {
-			res, err := legacyassets.RetireOpenCodeSDDPrompts(prompts)
+			// The preserved settings entries keep their {file:} substitutions,
+			// so the prompts they load must survive this retirement too. Read
+			// the references after settings retirement so only surviving
+			// entries contribute.
+			var referenced []string
+			for _, path := range settings {
+				refs, err := opencode.SettingsFileReferences(path, s.homeDir)
+				if err != nil {
+					return false, false, fmt.Errorf("read OpenCode file references in %q: %w", path, err)
+				}
+				referenced = append(referenced, refs...)
+			}
+			res, err := legacyassets.RetireOpenCodeSDDPrompts(prompts, referenced...)
 			removed = append(removed, res.Removed...)
 			if err != nil {
 				return false, false, fmt.Errorf("retire SDD prompts for %q: %w", agent, err)
