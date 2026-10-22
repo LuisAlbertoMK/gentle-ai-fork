@@ -96,6 +96,67 @@ func releasedSDDPrompt(t *testing.T, name string) string {
 	return string(data)
 }
 
+// A surviving entry can live in a settings layer retirement does not rewrite:
+// JSONC overrides JSON in the same directory, so both are layers the runtime
+// reads. Reading references only from the rewrite targets retires a prompt the
+// JSONC layer still loads.
+func TestRetiredSDDUninstallKeepsPromptReferencedFromSiblingSettings(t *testing.T) {
+	home := t.TempDir()
+	config := opencodeagent.ConfigPath(home)
+	settings := filepath.Join(config, "opencode.json")
+	jsonc := filepath.Join(config, "opencode.jsonc")
+	prompt := filepath.Join(config, "prompts", "sdd", "sdd-apply.md")
+	released := releasedSDDPrompt(t, "opencode-prompt-sdd-apply.md")
+	writeBatchFile(t, prompt, released)
+	writeBatchFile(t, settings, `{"agent":{}}`)
+	custom := map[string]any{
+		"mode":        "subagent",
+		"description": "Execute implementation tasks",
+		"prompt":      "{file:" + filepath.ToSlash(prompt) + "}",
+	}
+	data, err := json.Marshal(map[string]any{
+		"agent": map[string]any{"sdd-apply": custom},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeBatchFile(t, jsonc, "// kept by the user\n"+string(data))
+
+	svc, err := NewService(home, t.TempDir(), "dev")
+	if err != nil {
+		t.Fatal(err)
+	}
+	adapter, ok := svc.registry.Get(model.AgentOpenCode)
+	if !ok {
+		t.Fatal("OpenCode adapter is not registered")
+	}
+	op, _, ok := svc.retiredSDDOperation(adapter)
+	if !ok {
+		t.Fatal("retired SDD operation is not scheduled for OpenCode")
+	}
+	if _, _, err := op.apply(""); err != nil {
+		t.Fatal(err)
+	}
+	var result Result
+	op.report(&result)
+
+	got, err := os.ReadFile(prompt)
+	if err != nil {
+		t.Fatalf("prompt referenced from opencode.jsonc was retired: %v", err)
+	}
+	if string(got) != released {
+		t.Fatal("referenced prompt changed")
+	}
+	if kept, err := os.ReadFile(jsonc); err != nil || !strings.Contains(string(kept), "sdd-apply") {
+		t.Fatalf("surviving JSONC entry was removed: %s (%v)", kept, err)
+	}
+	if !slices.ContainsFunc(result.ManualActions, func(action string) bool {
+		return strings.Contains(action, prompt) && strings.Contains(action, "referenced")
+	}) {
+		t.Fatalf("manual actions = %v, want a notice for the referenced prompt", result.ManualActions)
+	}
+}
+
 // The full uninstall retires the shared SDD prompts, but an entry settings
 // retirement preserves keeps loading its {file:} substitution: retiring that
 // file leaves the runtime unable to load the configuration, the same failure

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/gentleman-programming/gentle-ai/v4/internal/agents"
 	opencodeagent "github.com/gentleman-programming/gentle-ai/v4/internal/agents/opencode"
@@ -90,7 +91,7 @@ func (s *Service) retiredSDDOperation(adapter agents.Adapter) (operation, []stri
 			// the references after settings retirement so only surviving
 			// entries contribute.
 			var referenced []string
-			for _, path := range settings {
+			for _, path := range promptReferencePaths(opencodeagent.ConfigPath(s.homeDir), settings) {
 				refs, err := opencode.SettingsFileReferences(path, s.homeDir)
 				if err != nil {
 					return false, false, fmt.Errorf("read OpenCode file references in %q: %w", path, err)
@@ -144,6 +145,44 @@ func retireSDDAgents(agent model.AgentID, dir string, removed, actions *[]string
 	}
 	*actions = append(*actions, res.ManualActions()...)
 	return nil
+}
+
+// promptReferencePaths returns every settings layer that can still load a
+// prompt through a {file:} substitution. Retirement rewrites only settings, but
+// a surviving entry may live in the sibling spelling of the same directory
+// (JSONC overrides JSON, so both are layers the runtime reads) or in the global
+// config directory when the effective path is elsewhere.
+func promptReferencePaths(configDir string, settings []string) []string {
+	paths := slices.Clone(settings)
+	extras := []string{
+		filepath.Join(configDir, "opencode.json"),
+		filepath.Join(configDir, "opencode.jsonc"),
+	}
+	for _, path := range settings {
+		extras = append(extras, settingsSibling(path))
+	}
+	slices.Sort(extras)
+	for _, path := range extras {
+		if path == "" || slices.Contains(paths, path) {
+			continue
+		}
+		if _, err := os.Lstat(path); err == nil {
+			paths = append(paths, path)
+		}
+	}
+	return paths
+}
+
+// settingsSibling returns the other spelling of a settings file in the same
+// directory, or "" when the name is neither .json nor .jsonc.
+func settingsSibling(path string) string {
+	switch filepath.Ext(path) {
+	case ".json":
+		return path + "c"
+	case ".jsonc":
+		return strings.TrimSuffix(path, "c")
+	}
+	return ""
 }
 
 // realDirectory reports whether path is a directory and not a link to one.
