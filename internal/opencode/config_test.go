@@ -8,8 +8,17 @@ import (
 	"testing"
 )
 
+// isolateHome pins every variable os.UserHomeDir reads. Windows resolves the
+// home directory from USERPROFILE, so setting HOME alone lets a test read the
+// developer's real OpenCode configuration and fail on unrelated user state.
+func isolateHome(t *testing.T, home string) {
+	t.Helper()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+}
+
 func TestResolveEffectiveConfigReadsJSONCAndAssignments(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	isolateHome(t, t.TempDir())
 	t.Setenv("XDG_CONFIG_HOME", "")
 	projectDir := t.TempDir()
 	configPath := filepath.Join(projectDir, "opencode.jsonc")
@@ -60,7 +69,7 @@ func TestResolveEffectiveConfigReadsJSONCAndAssignments(t *testing.T) {
 
 func TestResolveEffectiveConfigPrecedenceAndDefaultWriteTarget(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	projectDir := t.TempDir()
 	parentDir := filepath.Dir(projectDir)
@@ -92,7 +101,7 @@ func TestResolveEffectiveConfigPrecedenceAndDefaultWriteTarget(t *testing.T) {
 		t.Fatalf("remove parent config: %v", err)
 	}
 	emptyHome := t.TempDir()
-	t.Setenv("HOME", emptyHome)
+	isolateHome(t, emptyHome)
 	emptyProject := filepath.Join(emptyHome, "empty-project")
 	if err := os.MkdirAll(emptyProject, 0o700); err != nil {
 		t.Fatalf("mkdir empty project: %v", err)
@@ -109,7 +118,7 @@ func TestResolveEffectiveConfigPrecedenceAndDefaultWriteTarget(t *testing.T) {
 
 func TestResolveEffectiveConfigStopsProjectSearchAtGitRoot(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	parent := t.TempDir()
 	project := filepath.Join(parent, "repo")
@@ -143,7 +152,7 @@ func TestResolveEffectiveConfigStopsProjectSearchAtGitRoot(t *testing.T) {
 
 func TestResolveEffectiveConfigMalformedModelIsPresentButNotCleared(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 	projectDir := t.TempDir()
 	configPath := filepath.Join(projectDir, "opencode.jsonc")
 	if err := os.WriteFile(configPath, []byte(`{
@@ -170,7 +179,7 @@ func TestResolveEffectiveConfigMalformedModelIsPresentButNotCleared(t *testing.T
 }
 
 func TestResolveEffectiveConfigUsesBaseURLFallback(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	isolateHome(t, t.TempDir())
 	projectDir := t.TempDir()
 	configPath := filepath.Join(projectDir, "opencode.jsonc")
 	if err := os.WriteFile(configPath, []byte(`{
@@ -195,7 +204,7 @@ func TestResolveEffectiveConfigUsesBaseURLFallback(t *testing.T) {
 
 func TestEffectiveSettingsPathPreservesSelectedWritePathOnReadError(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	projectDir := t.TempDir()
 	configPath := filepath.Join(projectDir, "opencode.jsonc")
@@ -226,7 +235,7 @@ func TestResolveEffectiveConfigSelectsOpenCodeConfigFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			home := t.TempDir()
 			projectDir := t.TempDir()
-			t.Setenv("HOME", home)
+			isolateHome(t, home)
 			t.Setenv("XDG_CONFIG_HOME", "")
 			t.Setenv("OPENCODE_CONFIG_DIR", "")
 
@@ -255,7 +264,7 @@ func TestResolveEffectiveConfigSelectsOpenCodeConfigFile(t *testing.T) {
 	t.Run("json user-owned managed shape without marker selects jsonc with marker", func(t *testing.T) {
 		home := t.TempDir()
 		projectDir := t.TempDir()
-		t.Setenv("HOME", home)
+		isolateHome(t, home)
 		t.Setenv("XDG_CONFIG_HOME", "")
 		t.Setenv("OPENCODE_CONFIG_DIR", "")
 
@@ -310,7 +319,7 @@ func TestResolveEffectiveConfigUsesOpenCodeConfigDir(t *testing.T) {
 	projectDir := t.TempDir()
 	defaultDir := filepath.Join(home, ".config", "opencode")
 	overrideDir := filepath.Join(t.TempDir(), "opencode")
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("OPENCODE_CONFIG_DIR", overrideDir)
 	writeOpenCodeConfigFixture(t, filepath.Join(defaultDir, "opencode.json"), true)
@@ -328,10 +337,7 @@ func TestResolveEffectiveConfigUsesOpenCodeConfigDir(t *testing.T) {
 
 func TestRuntimeConfigPreservesWriteAuthorityAndLayeredReads(t *testing.T) {
 	home, project, override := t.TempDir(), t.TempDir(), t.TempDir()
-	t.Setenv("HOME", home)
-	// os.UserHomeDir (used by ResolveEffectiveConfig) reads USERPROFILE on
-	// Windows, not HOME, so both must point at the fixture home directory.
-	t.Setenv("USERPROFILE", home)
+	isolateHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("OPENCODE_CONFIG_DIR", override)
 	global := DefaultSettingsPathForHome(home)

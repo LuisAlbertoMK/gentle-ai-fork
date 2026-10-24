@@ -98,7 +98,7 @@ func TestConfigV2VariantsAndMalformedFields(t *testing.T) {
 
 func TestConfigV2LayerPriority(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	isolateHome(t, home)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("OPENCODE_CONFIG_DIR", "")
 	project := filepath.Join(home, "repo")
