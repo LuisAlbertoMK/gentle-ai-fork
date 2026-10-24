@@ -4777,12 +4777,12 @@ func (s checkDependenciesStep) Run() error {
 		}
 	}
 
-	// Run detection but do NOT write to stdout/stderr — this step runs
-	// inside the Bubble Tea alternate screen in TUI mode, so any raw
-	// output corrupts the display (see issue #2). Missing deps are
-	// surfaced on the TUI complete screen and by the actual install steps
-	// failing with real error messages.
-	_ = system.DetectDependencies(context.Background(), s.profile)
+	// The app already resolved a DetectionResult, including its dependency
+	// report, before staging this plan, and that report is what the TUI renders
+	// on the complete screen. Re-probing here would spawn every detected tool's
+	// version command a second time and then discard the report, so the probe is
+	// intentionally not repeated: the work is duplicated on every platform, not
+	// only on the ones where spawning a process is expensive.
 	for _, agent := range s.selection.Agents {
 		// Only Pi executes package commands (its already-present `pi`
 		// subcommands and npm-based Engram initialization — see
