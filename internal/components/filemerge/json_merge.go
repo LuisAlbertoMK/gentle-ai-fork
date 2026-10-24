@@ -53,6 +53,8 @@ func MergeJSONObjectsForPath(path string, baseJSON []byte, overlayJSON []byte) (
 // spellings of touched keys and comments inside touched values, all of which
 // the map-based rewrite would silently collapse or discard.
 func MergeOpenCodeJSONCObjects(baseJSON []byte, overlayJSON []byte) ([]byte, error) {
+	baseJSON = stripUTF8BOM(baseJSON)
+	overlayJSON = stripUTF8BOM(overlayJSON)
 	if len(bytes.TrimSpace(baseJSON)) == 0 {
 		return MergeJSONObjects(baseJSON, overlayJSON)
 	}
@@ -120,6 +122,8 @@ func MergeOpenCodeJSONDefaultsForPath(path string, baseJSON, defaultsJSON []byte
 }
 
 func mergeJSONDefaultsForPath(path string, baseJSON, defaultsJSON []byte, openCode bool) ([]byte, error) {
+	baseJSON = stripUTF8BOM(baseJSON)
+	defaultsJSON = stripUTF8BOM(defaultsJSON)
 	if openCode {
 		if err := RejectDuplicateJSONKeys(baseJSON); err != nil {
 			return nil, fmt.Errorf("refuse defaults over settings; resolve duplicate keys and retry: %w", err)
@@ -220,6 +224,7 @@ func marshalPermissionOrder(base []byte, value any, ordered bool) ([]byte, error
 }
 
 func unmarshalJSONObject(raw []byte) (map[string]any, error) {
+	raw = stripUTF8BOM(raw)
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return map[string]any{}, nil
 	}
@@ -492,8 +497,15 @@ func RemoveJSONAgentTools(raw []byte, names ...string) ([]byte, error) {
 }
 
 func normalizeJSON(raw []byte) []byte {
-	withoutComments := stripJSONComments(raw)
+	withoutComments := stripJSONComments(stripUTF8BOM(raw))
 	return stripTrailingCommas(withoutComments)
+}
+
+// stripUTF8BOM removes a leading UTF-8 byte order mark. Editors on Windows save
+// JSON/JSONC with a BOM and OpenCode accepts those files, so refusing them here
+// would make Gentle AI stricter than the host it manages.
+func stripUTF8BOM(raw []byte) []byte {
+	return bytes.TrimPrefix(raw, []byte{0xEF, 0xBB, 0xBF})
 }
 
 func stripJSONComments(raw []byte) []byte {

@@ -910,3 +910,70 @@ func TestUnmarshalJSONObjectKeepsStrictSingleDocument(t *testing.T) {
 		})
 	}
 }
+
+// Windows editors save settings with a UTF-8 BOM and OpenCode loads those
+// files, so every JSON/JSONC entry point must read them instead of refusing.
+func TestUTF8BOMIsAcceptedEverywhere(t *testing.T) {
+	bom := "\ufeff"
+	plain := `{"agent":{"build":{"model":"a/b"}}}`
+	jsonc := "// keep\n" + plain + "\n"
+
+	t.Run("unmarshal json", func(t *testing.T) {
+		object, err := UnmarshalJSONObject([]byte(bom + plain))
+		if err != nil {
+			t.Fatalf("UnmarshalJSONObject error = %v", err)
+		}
+		if _, ok := object["agent"]; !ok {
+			t.Fatalf("decoded object = %#v, want agent key", object)
+		}
+	})
+
+	t.Run("unmarshal jsonc", func(t *testing.T) {
+		if _, err := UnmarshalJSONObject([]byte(bom + jsonc)); err != nil {
+			t.Fatalf("UnmarshalJSONObject error = %v", err)
+		}
+	})
+
+	t.Run("duplicate keys", func(t *testing.T) {
+		if err := RejectDuplicateJSONKeys([]byte(bom + `{"a":1}`)); err != nil {
+			t.Fatalf("RejectDuplicateJSONKeys error = %v", err)
+		}
+	})
+
+	t.Run("jsonc merge preserves comments and drops the bom", func(t *testing.T) {
+		merged, err := MergeOpenCodeJSONCObjects([]byte(bom+jsonc), []byte(`{"mcp":{"context7":{"type":"remote"}}}`))
+		if err != nil {
+			t.Fatalf("MergeOpenCodeJSONCObjects error = %v", err)
+		}
+		if bytes.HasPrefix(merged, []byte{0xEF, 0xBB, 0xBF}) {
+			t.Fatalf("merged document kept the BOM: %q", merged)
+		}
+		if !strings.Contains(string(merged), "// keep") {
+			t.Fatalf("merged document dropped the comment: %q", merged)
+		}
+		decoded, err := UnmarshalJSONObject(merged)
+		if err != nil {
+			t.Fatalf("merged document is not readable JSONC: %v", err)
+		}
+		if _, ok := decoded["mcp"]; !ok {
+			t.Fatalf("merged document = %s, want mcp key", merged)
+		}
+	})
+
+	t.Run("defaults merge", func(t *testing.T) {
+		merged, err := MergeOpenCodeJSONDefaultsForPath("opencode.jsonc", []byte(bom+jsonc), []byte(`{"permission":{"*":"ask"}}`))
+		if err != nil {
+			t.Fatalf("MergeOpenCodeJSONDefaultsForPath error = %v", err)
+		}
+		if !strings.Contains(string(merged), "// keep") {
+			t.Fatalf("merged document dropped the comment: %q", merged)
+		}
+		decoded, err := UnmarshalJSONObject(merged)
+		if err != nil {
+			t.Fatalf("merged document is not readable JSONC: %v", err)
+		}
+		if _, ok := decoded["permission"]; !ok {
+			t.Fatalf("merged document = %s, want permission key", merged)
+		}
+	})
+}
