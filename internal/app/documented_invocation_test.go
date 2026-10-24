@@ -310,7 +310,36 @@ func findNonRetryableStop(document any) (string, bool) {
 
 // --- sandbox --------------------------------------------------------------
 
-func newDocumentedInvocationSandbox(t *testing.T) string {
+// seedDocumentedInvocationRepo builds the throwaway git repository once per
+// test run. Creating it per subtest cost five git process spawns each, and the
+// guard runs one invocation per documented command, so copying the seed into
+// each sandbox keeps the isolation while replacing hundreds of spawns with one
+// copy.
+func seedDocumentedInvocationRepo(t *testing.T) string {
+	t.Helper()
+	seed := filepath.Join(t.TempDir(), "seed-repo")
+	if err := os.MkdirAll(seed, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	git := func(args ...string) {
+		command := exec.Command("git", args...)
+		command.Dir = seed
+		if output, err := command.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, output)
+		}
+	}
+	git("init", "-q")
+	git("config", "user.email", "corpus@example.invalid")
+	git("config", "user.name", "corpus")
+	if err := os.WriteFile(filepath.Join(seed, "seed.txt"), []byte("seed\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git("add", ".")
+	git("commit", "-q", "-m", "seed")
+	return seed
+}
+
+func newDocumentedInvocationSandbox(t *testing.T, seedRepo string) string {
 	t.Helper()
 	root := t.TempDir()
 	repo := filepath.Join(root, "repo")
@@ -324,21 +353,9 @@ func newDocumentedInvocationSandbox(t *testing.T) string {
 	t.Setenv("USERPROFILE", home)
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 	t.Setenv("XDG_STATE_HOME", filepath.Join(home, ".local", "state"))
-	git := func(args ...string) {
-		command := exec.Command("git", args...)
-		command.Dir = repo
-		if output, err := command.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v\n%s", args, err, output)
-		}
+	if err := os.CopyFS(repo, os.DirFS(seedRepo)); err != nil {
+		t.Fatalf("copy seeded repository: %v", err)
 	}
-	git("init", "-q")
-	git("config", "user.email", "corpus@example.invalid")
-	git("config", "user.name", "corpus")
-	if err := os.WriteFile(filepath.Join(repo, "seed.txt"), []byte("seed\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	git("add", ".")
-	git("commit", "-q", "-m", "seed")
 	t.Chdir(repo)
 	return repo
 }
@@ -428,6 +445,9 @@ func TestDocumentedInvocationsRunAsDocumented(t *testing.T) {
 	}
 	corpus := collectDocumentedInvocations(t)
 	safeVerbs := platformIndependentVerbs(t)
+	// One seeded repository is copied per executed invocation instead of
+	// rebuilding it with five git subprocess spawns per subtest.
+	seedRepo := seedDocumentedInvocationRepo(t)
 
 	// Identical command text is exercised once; sources accumulate so a
 	// failure names every place the broken form is documented.
@@ -465,7 +485,7 @@ func TestDocumentedInvocationsRunAsDocumented(t *testing.T) {
 			if violation := registrySurfaceViolation(words); violation != "" {
 				failure = violation
 			} else {
-				sandbox := newDocumentedInvocationSandbox(t)
+				sandbox := newDocumentedInvocationSandbox(t, seedRepo)
 				for index, arg := range args {
 					args[index] = strings.ReplaceAll(arg, repo, sandbox)
 				}
