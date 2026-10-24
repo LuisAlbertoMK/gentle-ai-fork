@@ -21,6 +21,7 @@ import (
 	"github.com/gentleman-programming/gentle-ai/v4/internal/agents/claude"
 	"github.com/gentleman-programming/gentle-ai/v4/internal/components/filemerge"
 	"github.com/gentleman-programming/gentle-ai/v4/internal/model"
+	"github.com/gentleman-programming/gentle-ai/v4/internal/opencode"
 	"gopkg.in/yaml.v3"
 )
 
@@ -472,7 +473,16 @@ func engramServerFromJSON(root map[string]any, agentID model.AgentID) (map[strin
 	var server any
 	switch agentID {
 	case model.AgentOpenCode, model.AgentKilocode:
-		server = nestedJSONObject(root["mcp"])["engram"]
+		// OpenCode 2.x persists MCP servers in the native mcp.servers shape and
+		// 1.x used the flat mcp.<name> map. Delegate the precedence rule to the
+		// same helper the injector uses so the doctor can never drift from the
+		// shape sync actually writes (issue #5680). MCPEntry reports native-ness,
+		// not presence: it falls back to the legacy entry, and only a nil map
+		// means the host has no Engram registration at all.
+		if entry, _ := opencode.MCPEntry(root, "engram"); entry != nil {
+			return entry, true
+		}
+		return nil, false
 	case model.AgentOpenClaw:
 		server = nestedJSONObject(nestedJSONObject(root["mcp"])["servers"])["engram"]
 	case model.AgentVSCodeCopilot:
