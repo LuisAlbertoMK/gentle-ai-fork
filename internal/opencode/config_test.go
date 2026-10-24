@@ -67,6 +67,34 @@ func TestResolveEffectiveConfigReadsJSONCAndAssignments(t *testing.T) {
 	}
 }
 
+// TestResolveRuntimeConfigReadsBOMPrefixedSettings reproduces issue #5725: a
+// UTF-8 BOM written by a Windows editor must not abort the settings read, since
+// OpenCode itself loads the same file.
+func TestResolveRuntimeConfigReadsBOMPrefixedSettings(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("OPENCODE_CONFIG_DIR", "")
+	home := t.TempDir()
+	projectDir := t.TempDir()
+	configPath := filepath.Join(projectDir, "opencode.jsonc")
+	content := append([]byte{0xEF, 0xBB, 0xBF},
+		[]byte("{\"agent\":{\"sdd-apply\":{\"model\":\"lmstudio/local-qwen\"}}}\n")...)
+	if err := os.WriteFile(configPath, content, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	snapshot, err := ResolveRuntimeConfigForHome(home, projectDir)
+	if err != nil {
+		t.Fatalf("ResolveRuntimeConfigForHome() error = %v", err)
+	}
+	if snapshot.Path != configPath {
+		t.Fatalf("path = %q, want %q", snapshot.Path, configPath)
+	}
+	apply := snapshot.Assignments["sdd-apply"]
+	if !apply.Present || apply.Assignment.ModelID != "local-qwen" {
+		t.Fatalf("sdd-apply assignment = %+v, want the BOM-prefixed settings to be read", apply)
+	}
+}
+
 func TestResolveEffectiveConfigPrecedenceAndDefaultWriteTarget(t *testing.T) {
 	home := t.TempDir()
 	isolateHome(t, home)
